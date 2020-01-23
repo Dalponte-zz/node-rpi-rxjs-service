@@ -26,6 +26,7 @@
   },
   "homepage": "https://github.com/Dalponte/node-rpi-rxjs-service#readme",
   "dependencies": {
+    "epoll": "^3.0.0",
     "rpi-gpio": "^2.1.5",
     "rxjs": "^6.5.4"
   }
