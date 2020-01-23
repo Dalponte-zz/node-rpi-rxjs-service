@@ -1,0 +1,32 @@
+{
+  "name": "rpi-rxjs-service",
+  "version": "1.0.0",
+  "description": "Node service with rpi-gpio package and RxJs for GPIO control",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dalponte/node-rpi-rxjs-service.git"
+  },
+  "keywords": [
+    "node",
+    "raspberry",
+    "pi",
+    "rxjs",
+    "service",
+    "gpio"
+  ],
+  "author": "Maico Dal Ponte",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Dalponte/node-rpi-rxjs-service/issues"
+  },
+  "homepage": "https://github.com/Dalponte/node-rpi-rxjs-service#readme",
+  "dependencies": {
+    "rpi-gpio": "^2.1.5",
+    "rxjs": "^6.5.4"
+  }
+}
