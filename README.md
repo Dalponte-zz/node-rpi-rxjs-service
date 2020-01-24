@@ -1,5 +1,5 @@
 # node-rpi-rxjs-service
-Node service with rpi-gpio package and RxJs for GPIO control
+Node service with rpi-gpio package and RxJs for GPIO control on Raspberry Pi 3 B
 
 ### Instalation
 `npm install`
@@ -7,16 +7,16 @@ Node service with rpi-gpio package and RxJs for GPIO control
 ### Run
 `npm start`
 
-Or especify file using node:
+Or specify file using node:
 
 `node index.js`
 
 ## Instructions
 
 In order to isolate and be possible to 
-mock the event emitter from the GPIO 
+mock the event emitter from the GPIO, 
 there is a possibility to inject the 
-context on the observe libs.
+context on the observe functions.
 
 For example, In `index.js`:
 ```javascript
