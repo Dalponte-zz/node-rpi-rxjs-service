@@ -2,7 +2,6 @@ const { fromEvent } = require('rxjs');
 const { scan } = require('rxjs/operators');
 var gpio = require('rpi-gpio');
 
-
 VALVE_CHANNEL = 11
 FLUX_CHANNEL = 13
 
