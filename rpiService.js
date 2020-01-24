@@ -1,5 +1,5 @@
-const { fromEvent } = require('rxjs');
-const { scan } = require('rxjs/operators');
+const { Observable, fromEvent } = require('rxjs');
+const { scan, map } = require('rxjs/operators');
 var gpio = require('rpi-gpio');
 
 VALVE_CHANNEL = 11
@@ -20,13 +20,24 @@ const closeValve = (target, callBack) => {
 }
 
 const listenChannel = (target) => {
-    let counter = 0
     const listener = fromEvent(target, 'change')
     return listener.pipe(
         scan(({ pulses }, [channel, value]) => {
-            return { channel, value, pulses: pulses ? pulses + 1 : 1, counter: counter++ }
+            return { channel, value, pulses: pulses ? pulses + 1 : 1 }
         })
     )
+}
+
+const observeChannel = (target, condition) => {
+    return new Observable(subscriber => {
+        let pulses = 0
+        const listener = fromEvent(target, 'change')
+        listener.subscribe(([channel, value]) => {
+            const payload = { channel, value, pulses: pulses++ }
+            subscriber.next(payload)
+            if (condition(payload)) subscriber.complete()
+        })
+    });
 }
 
 const init = () => {
@@ -45,4 +56,5 @@ module.exports = {
     openValve: openValve,
     closeValve: closeValve,
     listenChannel: listenChannel,
+    observeChannel: observeChannel,
 }
