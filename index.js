@@ -1,77 +1,81 @@
 const { fromEvent } = require('rxjs');
 const readline = require('readline')
-const EventEmitter = require('events')
-const rpiService = require('./rpiService')
-const { finalize } = require('rxjs/operators');
+const { fluxometerObserver, valveSubject } = require('./rpiService')
 
 readline.emitKeypressEvents(process.stdin);
 process.stdin.setRawMode(true)
 const keypress = fromEvent(process.stdin, 'keypress')
 
-const mock = new EventEmitter();
-// Only for visual feedback	
-mock.on('change', (e) => console.log(e));
-
 const genericCallBack = (r) => console.warn(' == Callback == ', r)
 
-const pour = (rpi, { pulsePerMl, mlRestriction }) => {
-    // Open valve
-    rpiService.openValve(rpi, genericCallBack)
-
-    // Get RxJs observable by the EventEmiter provided by the GPIO lib
-    const flow = rpiService.observeChannel(rpi, ({ pulses }) => {
-        if (pulses * pulsePerMl >= mlRestriction) {
-            return true
+const pour = async () => {
+    v = await valveSubject()
+    console.log('#1', 'Valve setup')
+    const f = fluxometerObserver()
+    console.log('#2', 'Fluxometer setup')
+    v.next({ channel: 11, value: false })
+    console.log('#3', 'Valve OPEN')
+    const listen = f.subscribe(payload => {
+        console.log('#', payload)
+        if (payload.volume >= 10) {
+            listen.unsubscribe()
+            console.warn('#4', 'Reset valve and stop listen')
+            v.complete()
         }
-        else return false
-    })
-    const treated = flow.pipe(finalize(() => rpiService.closeValve(rpi, genericCallBack)))
-
-    // Set a subscription to listen every event received
-    treated.subscribe(({ pulses, counter }) => {
-        console.warn('Flux:', pulses, 'Volume:', pulses * pulsePerMl)
     })
 }
 
-rpiService.init()
-    .then(rpi => {
-        console.info('Press CTRL + C to end program')
+let valve
+let flux
 
-        keypress.subscribe(([event, key]) => {
-            switch (event) {
-                case '\r':
-                    // Emit node event to simulate IO with delay	
-                    mock.emit('change', [13, true])
-                    break
+console.info('Press CTRL + C to end program')
+try {
+    keypress.subscribe(async ([event, key]) => {
+        switch (event) {
 
-                case '1':
-                    // Manualy open the valve
-                    rpiService.openValve(rpi, genericCallBack)
-                    break
+            case '1': // Initialization
+                valve = await valveSubject()
+                valve.subscribe((item) => console.log(item))
+                break
 
-                case '2':
-                    // Manualy close the valve
-                    rpiService.closeValve(rpi, genericCallBack)
-                    break
+            case '2': // Open valve event
+                valve.next({ channel: 11, value: false })
+                break
 
-                case ' ':
-                    // Pour 300 ml
-                    pour(rpi, { pulsePerMl: 0.11, mlRestriction: 300 })
-                    break
+            case '3': // Close valve event
+                valve.next({ channel: 11, value: true }) // CLOSE VALVE
+                break
 
-                case 't':
-                    // Pour 10 ml
-                    pour(rpi, { pulsePerMl: 0.11, mlRestriction: 10 })
-                    break
+            case '4': // Should close the valve
+                valve.complete()
+                break
 
-                case '\u0003':
-                    // CTRL + C to exit
-                    rpiService.closeValve(rpi, genericCallBack)
-                    process.exit()
-                default: console.log(JSON.stringify(key))
-            }
-        });
+            case ' ': // Listen the fluxometer event
+                try {
+                    flux = fluxometerObserver().subscribe(item => console.log(item))
+                    console.log('Listen')
+                } catch (e) {
+                    console.error(e)
+                }
+                break;
 
+            case 'x': // Stop listening the fluxometer event
+                flux.unsubscribe()
+                console.log('Stop listening fluxometer')
+                break;
 
-    })
-    .catch(err => console.error(err))
+            case '\r': //
+                pour()
+                break
+
+            case '\u0003':
+                // CTRL + C to exit
+                if (valve) valve.complete()
+                process.exit()
+            default: console.log(JSON.stringify(key))
+        }
+    });
+} catch (e) {
+    console.log(e)
+    if (valve) valve.complete()
+}
