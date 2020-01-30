@@ -1,23 +1,24 @@
 const { fromEvent } = require('rxjs');
 const readline = require('readline')
-const { fluxometerObserver, valveSubject } = require('./rpiService')
+const { init, setupFlowmeter, setupValve } = require('./rpiService')
 
 readline.emitKeypressEvents(process.stdin);
 process.stdin.setRawMode(true)
 const keypress = fromEvent(process.stdin, 'keypress')
 
-const genericCallBack = (r) => console.warn(' == Callback == ', r)
-
-const pour = async () => {
-    v = await valveSubject()
+const pour = async (mls) => {
+    v = await setupValve()
+    v.subscribe((payload) => {
+        console.log('valve_changed', payload);
+    })
     console.log('#1', 'Valve setup')
-    const f = fluxometerObserver()
+    const f = setupFlowmeter()
     console.log('#2', 'Fluxometer setup')
     v.next({ channel: 11, value: false })
     console.log('#3', 'Valve OPEN')
     const listen = f.subscribe(payload => {
         console.log('#', payload)
-        if (payload.volume >= 10) {
+        if (payload.volume >= mls) {
             listen.unsubscribe()
             console.warn('#4', 'Reset valve and stop listen')
             v.complete()
@@ -34,7 +35,7 @@ try {
         switch (event) {
 
             case '1': // Initialization
-                valve = await valveSubject()
+                valve = await setupValve()
                 valve.subscribe((item) => console.log(item))
                 break
 
@@ -51,21 +52,21 @@ try {
                 break
 
             case ' ': // Listen the fluxometer event
-                try {
-                    flux = fluxometerObserver().subscribe(item => console.log(item))
-                    console.log('Listen')
-                } catch (e) {
-                    console.error(e)
-                }
+                flux = setupFlowmeter().subscribe(item => console.log(item))
+                console.log('Start listening flowmeter')
                 break;
 
             case 'x': // Stop listening the fluxometer event
                 flux.unsubscribe()
-                console.log('Stop listening fluxometer')
+                console.log('Stop listening flowmeter')
                 break;
 
+            case 't': //
+                pour(10)
+                break
+
             case '\r': //
-                pour()
+                pour(200)
                 break
 
             case '\u0003':
