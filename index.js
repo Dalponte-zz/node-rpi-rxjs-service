@@ -1,18 +1,19 @@
-const { fromEvent } = require('rxjs');
+const { fromEvent } = require('rxjs')
 const readline = require('readline')
 const gpioController = require('./gpioController')
+const rfidController = require('./rfidController')
 const mockEvent = require('./mockEvent')
 
 const pourVolume = ({ valve, flowMeter }) => (event, { id, limitAmount, code }) => {
     const flux = gpioController.setupFlowMeter(flowMeter)
     const listen = flux.subscribe(payload => {
-        event.sender.send('FLOW', payload);
+        event.sender.send('FLOW', payload)
         if (payload.volume >= limitAmount) {
             listen.unsubscribe()
             valve.next({ action: gpioController.CLOSE_VALVE }) // @TODO Change to symbol close_valve
             console.log('[4] ===> ', 'Valve CLOSED. ==> Served: ', payload.volume, ' mls')
 
-            event.sender.send('FINISHED', { consumptionBeginId: id, totalAmount: payload.volume, code, metrics });
+            event.sender.send('FINISHED', { consumptionBeginId: id, totalAmount: payload.volume, code, metrics: [] })
         }
     })
 
@@ -20,7 +21,7 @@ const pourVolume = ({ valve, flowMeter }) => (event, { id, limitAmount, code }) 
     console.log('[3] ===> ', 'Valve OPEN ==> Serving ', limitAmount, ' mls')
 }
 
-readline.emitKeypressEvents(process.stdin);
+readline.emitKeypressEvents(process.stdin)
 process.stdin.setRawMode(true)
 const keypress = fromEvent(process.stdin, 'keypress')
 console.info('Press CTRL + C to end program')
@@ -29,6 +30,9 @@ var f
 try {
     keypress.subscribe(async ([event, key]) => {
         switch (event) {
+            case '0': //
+                pourVolume(10)
+                break
 
             case '1': // Initialization
                 v = await gpioController.setupValve()
@@ -36,15 +40,35 @@ try {
                 break
 
             case '2': // Open valve event
-                v.next({ action: gpioController.OPEN_VALVE }) 
+                v.next({ action: gpioController.OPEN_VALVE })
                 break
 
             case '3': // Close valve event
-                v.next({ action: gpioController.CLOSE_VALVE }) 
+                v.next({ action: gpioController.CLOSE_VALVE })
                 break
 
             case '4': // Should close the valve
                 v.complete()
+                break
+
+            case '5':
+                console.log('-> Lendo RFID uma vez')
+                obs = rfidController.readOnce()
+                console.warn(obs)
+                obs.subscribe((payload) => {
+                    console.log('LEU: ', payload)
+                })
+                break
+
+            case '6':
+                rfidController
+                    .listen()
+                    .subscribe(payload => {
+                        console.log(payload)
+                        gpioController.init().then(({ valve }) => {
+                            pourVolume({ valve })(mockEvent, {id: 10, limitAmount: 50, code:  'UNDEFINED'})
+                        })
+                    })
                 break
 
             case ' ': // Listen the fluxometer event
@@ -57,10 +81,6 @@ try {
                 console.log('Stop listening flowmeter')
                 break;
 
-            case 't': //
-                pour(10)
-                break
-
             case '\r': //
                 gpioController.init().then(({ valve }) => {
                     pourVolume({ valve })(mockEvent, 100, 'UNDEFINED')
@@ -68,7 +88,6 @@ try {
                     console.error('[ERROR] ===> It was not possible initialize the GPIO Controller!')
                     ipcMain.on('AUTHENTICATED', pourVolume({ valve: new Subject(), flowMeter: mock() }))
                 })
-
                 break
 
             case '\u0003':
