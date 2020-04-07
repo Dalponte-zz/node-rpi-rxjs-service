@@ -20,7 +20,7 @@ const setupFlowMeter = (flowMeter) => {
       const volume = Math.trunc(pulses * 0.11)
       return {channel, value, pulses, volume}
     }),
-    filter(({pulses}) => pulses % 8 === 0),
+    // filter(({pulses}) => pulses % 8 === 0),
   );
 }
 

@@ -13,19 +13,26 @@ Or specify file using node:
 
 ## Instructions
 
-In order to isolate and be possible to 
-mock the event emitter from the GPIO, 
-there is a possibility to inject the 
-context on the observe functions.
+Ao iniciar o programa as seguintes opções estão disponíveis:
 
-For example, In `index.js`:
-```javascript
-// Create a event emitter instance 
-const mock = new EventEmitter();
+ - Tecla `1`: Seleciona o pino `11` (`GPIO 17`) no modo OUT para controlar Relé. Para alterar a porta, mudar a constante no arquivo `gpioController.js`
+    - Tecla `2` dispara um evento que marca a porta do Relé como ativa (`true`).
+    - Tecla `3` dispara um evento que marca a porta do Relé como inativa (`false`).
+    - Tecla `4` cancela o processo que utiliza a porta, marcando como inativa ao terminar.
 
-// Pass the mocked event emmiter to the context
-pour(mock, { pulsePerMl: 0.11, mlRestriction: 300 })
+ - Tecla `5`: Inicia um EventEmmiter que lê o modulo de RFID a cada segundo, finalizando o processo uma vez que for lido, apresentando os dados da tag em tela.
 
-// Then, emit event as a GPIO channel would
-mock.emit('change', [13, true])
-```
+ - Tecla `6`: Inicia um EventEmmiter que lê o modulo de RFID a cada segundo, quando lido uma tag, inicia o procedimento de consumo:
+    1. Marca a porta do relé como ativa
+    2. Começa a ouvir o fluxometro mostrando o evento de alteração do estado da porta `13` (`GPIO 27`)
+    3. Ao contar o equivalente a 50 Mls, a porta do relé é marcada como inativa e o procedimento de consumo é finalizado.
+ 
+ - Tecla ` ` (espaço): Inicia uma função asincrona que mostra no console o evento de alteração do estado da porta `13` (`GPIO 27`)
+    - Tecla `x` finliza a função de leitura da porta `13`
+
+ - Tecla `\r` (enter): Inicia um procedimento de consumo:
+    1. Marca a porta do relé como ativa
+    2. Começa a ouvir o fluxometro mostrando o evento de alteração do estado da porta `13` (`GPIO 27`)
+    3. Ao contar o equivalente a 100 Mls, a porta do relé é marcada como inativa e o procedimento de consumo é finalizado.
+
+- Tecla `\u0003` (**CTRL + C**): Termina o programa.

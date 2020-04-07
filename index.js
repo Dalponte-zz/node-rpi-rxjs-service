@@ -30,28 +30,24 @@ var f
 try {
     keypress.subscribe(async ([event, key]) => {
         switch (event) {
-            case '0': //
-                pourVolume(10)
-                break
-
-            case '1': // Initialization
+            case '1': // Inicializa porta da valvula
                 v = await gpioController.setupValve()
                 v.subscribe((item) => console.log(item))
                 break
 
-            case '2': // Open valve event
+            case '2': // Abre valvula
                 v.next({ action: gpioController.OPEN_VALVE })
                 break
 
-            case '3': // Close valve event
+            case '3': // Fecha valvula
                 v.next({ action: gpioController.CLOSE_VALVE })
                 break
 
-            case '4': // Should close the valve
+            case '4': // Termina controlador da válvula
                 v.complete()
                 break
 
-            case '5':
+            case '5': // Leitura do RFID apresentando na tela
                 console.log('-> Lendo RFID uma vez')
                 obs = rfidController.readOnce()
                 console.warn(obs)
@@ -60,7 +56,7 @@ try {
                 })
                 break
 
-            case '6':
+            case '6': // Permanentemente ouvindo RFID e libera consumo de 50ml
                 rfidController
                     .listen()
                     .subscribe(payload => {
@@ -71,17 +67,17 @@ try {
                     })
                 break
 
-            case ' ': // Listen the fluxometer event
-                f = setupFlowmeter().subscribe(item => console.log(item))
+            case ' ': // Permanentemente começa a ouvir a porta do fluxometro
+                f = gpioController.setupFlowMeter().subscribe(item => console.log(item))
                 console.log('Start listening flowmeter')
                 break;
 
-            case 'x': // Stop listening the fluxometer event
+            case 'x': // Para de ouvir a porta do fluxometro
                 f.unsubscribe()
                 console.log('Stop listening flowmeter')
                 break;
 
-            case '\r': //
+            case '\r': // Libera 100ml usando 
                 gpioController.init().then(({ valve }) => {
                     pourVolume({ valve })(mockEvent, 100, 'UNDEFINED')
                 }).catch((err) => {
@@ -90,7 +86,7 @@ try {
                 })
                 break
 
-            case '\u0003':
+            case '\u0003': // CTRL C termina aplicação
                 // CTRL + C to exit
                 process.exit()
 
