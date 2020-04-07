@@ -23,6 +23,13 @@ Or specify file using node:
 
 ## Instruções
 
+- **Referências para conexões dos pinos do módulo RFID**:
+ https://www.npmjs.com/package/mfrc522-rpi
+
+- **Referências para outras portas GPIO**:
+ https://www.raspberrypi.org/documentation/usage/gpio/
+
+
 Ao iniciar o programa as seguintes opções estão disponíveis:
 
  - Tecla `1`: Seleciona o pino `11` (`GPIO 17`) no modo OUT para controlar Relé. Para alterar a porta, mudar a constante no arquivo `gpioController.js`
