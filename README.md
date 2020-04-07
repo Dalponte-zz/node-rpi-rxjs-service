@@ -1,6 +1,16 @@
 # node-rpi-rxjs-service
 Node service with rpi-gpio package and RxJs for GPIO control on Raspberry Pi 3 B
 
+Para instalar o Node, utilize NVM com NODE 12:
+```
+git clone https://github.com/creationix/nvm.git ~/.nvm
+
+sudo echo "source ~/.nvm/nvm.sh" >> ~/.bashrc && sudo echo "source ~/.nvm/nvm.sh" >> ~/.profile
+
+nvm install v12.14.1
+```
+
+
 ### Instalation
 `npm install`
 
@@ -11,7 +21,7 @@ Or specify file using node:
 
 `node index.js`
 
-## Instructions
+## Instruções
 
 Ao iniciar o programa as seguintes opções estão disponíveis:
 
