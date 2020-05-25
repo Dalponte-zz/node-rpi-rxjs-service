@@ -7,9 +7,9 @@ process.stdin.setRawMode(true)
 const keypress = fromEvent(process.stdin, 'keypress')
 console.info('CTRL+C - Terminar')
 
-const P1 = 29
-const P2 = 31
-const P3 = 36
+const P1 = 16
+const P2 = 18
+const P3 = 15
 
 console.info('------------------'
 + '\n\'- Setup'

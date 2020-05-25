@@ -1,19 +1,32 @@
-const { fromEvent } = require('rxjs')
+const {Observable, fromEvent, Subject, interval, timer} = require('rxjs');
+const {first, skip, debounce, map, finalize, filter, throttle, switchMap, multicast} = require('rxjs/operators');
 const readline = require('readline')
 const gpioController = require('./gpioController')
 const rfidController = require('./rfidController')
 const mockEvent = require('./mockEvent')
 
+
 const pourVolume = ({ valve, flowMeter }) => (event, { id, limitAmount, code }) => {
     const flux = gpioController.setupFlowMeter(flowMeter)
+
+    const db = flux.pipe(
+        switchMap(() => interval(2000))
+    )
+    console.log('[DEBOUNCE] ==> setup',db)
+
     const listen = flux.subscribe(payload => {
-        event.sender.send('FLOW', payload)
+        event.sender.send('FLOW', {...payload, limitAmount} )
+
+        db.subscribe(payload => {
+            console.log('[DEBOUNCE] ==> Consumo terminado por Debounce')
+            event.sender.send('DEBOUNCE', {consumptionBeginId: id, totalAmount: payload.volume, code, metrics: {}});
+          });
+
         if (payload.volume >= limitAmount) {
-            listen.unsubscribe()
+            event.sender.send('FINISHED', { consumptionBeginId: id, totalAmount: payload.volume, code, metrics: [] })
             valve.next({ action: gpioController.CLOSE_VALVE }) // @TODO Change to symbol close_valve
             console.log('[4] ===> ', 'Valve CLOSED. ==> Served: ', payload.volume, ' mls')
-
-            event.sender.send('FINISHED', { consumptionBeginId: id, totalAmount: payload.volume, code, metrics: [] })
+            listen.unsubscribe()
         }
     })
 
@@ -26,10 +39,19 @@ process.stdin.setRawMode(true)
 const keypress = fromEvent(process.stdin, 'keypress')
 console.info('Press CTRL + C to end program')
 var v
-var f
+
+
+const consumption = new Subject().subscribe((payload)=> {
+    const f = gpioController.setupFlowMeter()
+})
 try {
     keypress.subscribe(async ([event, key]) => {
         switch (event) {
+            case 'a':
+                md.next({})
+
+                break
+
             case '1': // Inicializa porta da valvula
                 v = await gpioController.setupValve()
                 v.subscribe((item) => console.log(item))
@@ -79,10 +101,10 @@ try {
 
             case '\r': // Libera 100ml usando 
                 gpioController.init().then(({ valve }) => {
-                    pourVolume({ valve })(mockEvent, 100, 'UNDEFINED')
+                    pourVolume({ valve })(mockEvent, {id: 10, limitAmount: 50, code:  'UNDEFINED'})
                 }).catch((err) => {
-                    console.error('[ERROR] ===> It was not possible initialize the GPIO Controller!')
-                    ipcMain.on('AUTHENTICATED', pourVolume({ valve: new Subject(), flowMeter: mock() }))
+                    console.error('[ERROR] ===> It was not possible initialize the GPIO Controller!', err)
+//                     ipcMain.on('AUTHENTICATED', pourVolume({ valve: new Subject(), flowMeter: mock() }))
                 })
                 break
 

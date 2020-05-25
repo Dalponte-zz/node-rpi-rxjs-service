@@ -8,14 +8,14 @@ const { map, finalize, filter, throttle } = require('rxjs/operators')
 readline.emitKeypressEvents(process.stdin)
 process.stdin.setRawMode(true)
 const keypress = fromEvent(process.stdin, 'keypress')
-console.info(' \' - Setup \n 1 - Open \n 2 - Close \n CTRL+C - Terminar')
+console.info('----------------\n CTRL+C - Terminar\n----------------')
 
 
 const listenPortChange = (port) => {
 	let count = 0
 	return fromEvent(gpio, 'change').pipe(
 		map(([channel, value], pulses) => {
-			console.log('CHANNEL: ', channel, 'PORT: ', port)
+			console.log('CHANNEL: ', channel, 'PORT: ', port, value)
 			count++
 			const volume = Math.trunc(count * 0.146)
 			return { port, count, pulses, volume, value}
@@ -25,37 +25,45 @@ const listenPortChange = (port) => {
 	);
 }
 
-const FLOWMETER_CHANNEL = 15
-const TEST_CHANNEL = 11
+const setup = () => {
+	const flow = listenPortChange(FLOWMETER_CHANNEL)
+	return flow.subscribe(async payload => {
+		console.log('FLOW', payload)
+		gpiop.write(LED_CHANNEL, payload.value)
+	})
+}
+
+const FLOWMETER_CHANNEL = 13
+const LED_CHANNEL = 15
+
+let f
 
 const init = async () => {
 	try {
-		keypress.subscribe(async ([event]) => {
-			await gpiop.setup(TEST_CHANNEL, gpio.DIR_LOW)
+		await gpiop.setup(LED_CHANNEL, gpio.DIR_LOW)
+		await gpiop.setup(11, gpio.DIR_LOW)
+		await gpiop.setup(FLOWMETER_CHANNEL, gpiop.DIR_IN, gpiop.EDGE_BOTH)
 
+			
+		f = setup()
+
+		keypress.subscribe(async ([event]) => {
 			switch (event) {
-				case '\'':
-					await gpio.setup(FLOWMETER_CHANNEL, gpio.DIR_IN, gpio.EDGE_BOTH)
-					const flow = listenPortChange(FLOWMETER_CHANNEL)
-					flow.subscribe(payload => {
-						console.log('FLOW', payload)
-					})
-					break
 				case '1':
-					gpiop.write(TEST_CHANNEL, true)
+					if (f) f.unsubscribe()
+					f = setup()
 					break
 				case '2':
-					gpiop.write(TEST_CHANNEL, false)
-					break
-				case '3':
-					await gpio.setup(13, gpio.DIR_IN, gpio.EDGE_BOTH)
-					const t = listenPortChange(13)
-					t.subscribe(payload => {
-						console.log('TESTE', payload)
+					gpio.on('change', async(ch, value) => {
+						await gpiop.write(LED_CHANNEL, value)
+						console.log(ch, value)
 					})
 					break
-				case '0':
-					gpio.destroy()
+				case '\'':
+					f.unsubscribe()
+					break
+				case 'q':
+					gpiop.destroy()
 					break
 				case '\u0003': // CTRL C termina aplicação
 					// CTRL + C to exit

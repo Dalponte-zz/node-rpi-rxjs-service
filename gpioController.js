@@ -1,6 +1,6 @@
-const {Observable, fromEvent, Subject} = require('rxjs');
-const {map, finalize, filter} = require('rxjs/operators');
-var gpio = require('rpi-gpio');
+const {Observable, fromEvent, Subject, interval} = require('rxjs');
+const {map, finalize, filter, throttle} = require('rxjs/operators');
+var gpio = require('rpi-gpio').promise;
 
 VALVE_CHANNEL = 11
 FLUX_CHANNEL = 13
@@ -17,15 +17,19 @@ const setupFlowMeter = (flowMeter) => {
   return observable.pipe(
     map(([channel, value]) => {
       pulses++
-      const volume = Math.trunc(pulses * 0.11)
+      const volume = Math.trunc(pulses * 0.146)
       return {channel, value, pulses, volume}
     }),
+    throttle(val => interval(50))
     // filter(({pulses}) => pulses % 8 === 0),
   );
 }
 
 const setValveState = (target, action) => {
-  target.write(VALVE_CHANNEL, action, err => err || console.error('VALVE_STATE_ERROR', err));
+  target.write(VALVE_CHANNEL, action, err => {
+    if (err)
+      console.error('VALVE_STATE_ERROR', err)
+  });
 }
 
 const setupValve = () => {
@@ -49,6 +53,7 @@ const setupValve = () => {
 }
 
 const init = () => {
+  
   return new Promise(async (resolve, reject) => {
     try {
       const valve = await setupValve()

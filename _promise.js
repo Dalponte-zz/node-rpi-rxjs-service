@@ -6,13 +6,20 @@ readline.emitKeypressEvents(process.stdin)
 process.stdin.setRawMode(true)
 const keypress = fromEvent(process.stdin, 'keypress')
 
-const CH_1 = 16
+const CH_1 = 11
 const CH_2 = 15
 const CH_3 = 29
 const CH_4 = 31
 
+console.log(
+    gpio.DIR_IN,
+    gpio.DIR_LOW,
+    gpio.DIR_HIGH,
+    gpio.EDGE_BOTH,
+)
+
 console.info(`------------------
-\'- Setup ${CH_1} 
+\'- Setup ${CH_1} ${gpio.DIR_LOW}
 1- True
 2- False
 3- 2s interval
@@ -45,7 +52,7 @@ const init = async () => {
                     console.log(CH_1, false, 'CLOSE',  close)
                     break
                 case '3':
-                    s = interval(1000)
+                    s = interval(2000)
                     s.subscribe(async (t) => {
                         gpio.write(CH_1, state)
                         console.log(CH_1, state, t)
