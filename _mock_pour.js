@@ -20,7 +20,7 @@ const provider = new PourProvider(
         // delay(15000), // TIMEOUT
         filter((t) => {
             // return true // Default
-            return t < 50 || t > 500 // DEBOUNCE
+            return t < 300 // || t > 500 // DEBOUNCE
         }),
         map(() => [13, true])
     ),

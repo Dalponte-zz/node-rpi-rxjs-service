@@ -1,10 +1,6 @@
 const { of, Subscription, Observable, fromEvent, Subject, interval, BehaviorSubject } = require('rxjs');
 const { takeLast, skip, map, takeWhile, timeoutWith, catchError, finalize, delay, isEmpty, count, timeout, first, filter, debounce, throttle, switchMap } = require('rxjs/operators');
 
-const gpio = require('rpi-gpio')
-const gpioPromise = require('rpi-gpio').promise
-
-
 const OPEN_VALVE = false
 const CLOSE_VALVE = true
 
@@ -17,7 +13,7 @@ const LED_BLUE = 16
 module.exports = class PourProvider {
   constructor(
     gpioListener,
-    gpioPromiseController,
+    gpioPromise,
     {
       flowPulseFactor,
       timeoutTime,
@@ -27,7 +23,7 @@ module.exports = class PourProvider {
     this.timeoutTime = timeoutTime
     this.debounceTime = debounceTime
     this.gpioListener = gpioListener
-    this.gpioCtrl = gpioPromiseController
+    this.gpioCtrl = gpioPromise
   }
 
   async clean() {
@@ -84,22 +80,19 @@ module.exports = class PourProvider {
       throttle(() => interval(100)),
     )
     
-    
     const subscription = new Subscription()
 
-    const dbObs = flowMeter.pipe(
-      debounce(() => interval(debounceTime)),
-      first()
+    subscription.add( flowMeter.pipe(
+      debounce(() => interval(debounceTime))
     ).subscribe(async (payload) => {
       event.sender.send('DEBOUNCE', { ...payload, consumptionOrderId, meta })
       await this.stop()
       subscription.unsubscribe()
-    })
-    subscription.add(dbObs)
+    }))
 
-    const to = flowMeter.pipe(
+    subscription.add( flowMeter.pipe(
       timeout(timeoutTime),
-      first(),
+      first()
     ).subscribe(
       null,
       async () => {
@@ -107,18 +100,14 @@ module.exports = class PourProvider {
         await this.stop()
         subscription.unsubscribe()
       }
-    )
-    subscription.add(to)
+    ))
 
-    subscription.add(flowMeter
-      .subscribe(
+    subscription.add(flowMeter.subscribe(
         async  payload => {
           event.sender.send('FLOW', payload)
-
           if (payload.volume >= limitAmount) {
             event.sender.send('FINISHED', { ...payload, consumptionOrderId, meta })
             await this.stop()
-            dbObs.unsubscribe()
             subscription.unsubscribe()
           }
         },
@@ -126,13 +115,7 @@ module.exports = class PourProvider {
           event.sender.send('ERROR', { error: err.message, consumptionOrderId, meta })
           await this.stop()
           subscription.unsubscribe()
-        },
-        async  () => {
-          console.log('COMPLETE ===>')
-          await this.stop()
-          subscription.unsubscribe()
         }
-      ))
-
+    ))
   }
 }
