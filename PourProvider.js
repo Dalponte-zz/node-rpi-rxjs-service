@@ -1,5 +1,7 @@
-const {Observable, fromEvent, Subject, interval, BehaviorSubject} = require('rxjs');
-const {map, finalize, filter, debounce, throttle, switchMap} = require('rxjs/operators');
+const { of, Subscription, Observable, fromEvent, Subject, interval, BehaviorSubject } = require('rxjs');
+const { takeLast, map, takeWhile, timeoutWith, catchError, finalize, delay, isEmpty, count, timeout, first, filter, debounce, throttle, switchMap } = require('rxjs/operators');
+
+const gpio = require('rpi-gpio')
 
 const OPEN_VALVE = false
 const CLOSE_VALVE = true
@@ -11,27 +13,29 @@ const LED_GREEN = 15
 const LED_BLUE = 16
 
 module.exports = class PourProvider {
-  gpioChange
-
-  constructor({
-                flowPulseFactor,
-                timeoutTime,
-                debounceTime,
-                gpioObservable,
-                gpioPromiseController,
-              }) {
-    this.config = {
-      flowPulseFactor: flowPulseFactor,
-      timeoutTime: timeoutTime,
-      debounceTime: debounceTime,
-    }
-    this.gpioChange = gpioObservable
+  constructor(
+    gpioListener,
+    gpioPromiseController,
+    {
+      flowPulseFactor,
+      timeoutTime,
+      debounceTime,
+    }) {
+    this.flowPulseFactor = flowPulseFactor
+    this.timeoutTime = timeoutTime
+    this.debounceTime = debounceTime
+    this.gpioListener = gpioListener
     this.gpioCtrl = gpioPromiseController
   }
 
-  async setup () {
+  async clean() {
+    console.log('DESTROY!')
+    return this.gpioCtrl.destroy()
+  }
+
+  async setup() {
     const gpioCtrl = this.gpioCtrl
-    console.log('[SETUP] => ', FLOWMETER, RELE)
+    console.log('SETUP => ', FLOWMETER, RELE)
     return Promise.all([
       gpioCtrl.setup(FLOWMETER, gpioCtrl.DIR_IN, gpioCtrl.EDGE_BOTH),
       gpioCtrl.setup(RELE, gpioCtrl.DIR_HIGH),
@@ -41,18 +45,18 @@ module.exports = class PourProvider {
     ])
   }
 
-  async start () {
+  async start() {
     const gpioCtrl = this.gpioCtrl
-    console.log('[START] => ', RELE, LED_RED, LED_GREEN)
+    console.log('START => ', RELE, LED_RED, LED_GREEN)
     return Promise.all([
       gpioCtrl.write(RELE, OPEN_VALVE),
       gpioCtrl.write(LED_RED, false),
       gpioCtrl.write(LED_GREEN, true),
     ])
   }
-  async stop () {
+  async stop() {
     const gpioCtrl = this.gpioCtrl
-    console.log('[STOP] => ', RELE, LED_RED, LED_GREEN)
+    console.log('STOP => ', RELE, LED_RED, LED_GREEN)
     return Promise.all([
       gpioCtrl.write(RELE, CLOSE_VALVE),
       gpioCtrl.write(LED_RED, true),
@@ -60,4 +64,73 @@ module.exports = class PourProvider {
     ])
   }
 
+  consumptionHandler = async (event, { id, limitAmount, consumptionOrderId, meta }) => {
+    console.log(event, id)
+    const debounceTime = this.debounceTime,
+      timeoutTime = this.timeoutTime,
+      flowPulseFactor = this.flowPulseFactor,
+      flowMeterSource = this.gpioListener()
+      
+    console.log('=> Config: ', { debounceTime, timeoutTime, flowPulseFactor })
+
+    await this.start()
+
+    let pulses = 0
+    const flowMeter = flowMeterSource.pipe(
+      map(([pin, value], i) => {
+        pulses++
+        const volume = Math.trunc(pulses * flowPulseFactor)
+        return { id, pin, value, pulses, volume }
+      }),
+      throttle(() => interval(100)),
+    )
+    
+    
+    const subscription = new Subscription()
+
+    const dbObs = flowMeter.pipe(
+      debounce(() => interval(debounceTime))
+    ).subscribe(async (payload) => {
+      event.sender.send('DEBOUNCE', { ...payload, consumptionOrderId, meta })
+      await this.stop()
+      subscription.unsubscribe()
+    })
+
+    const to = flowMeter.pipe(
+      timeout(timeoutTime),
+      first(),
+    ).subscribe(
+      null,
+      async  () => {
+        event.sender.send('TIMEOUT', { id, pulses: 0, volume: 0, meta, consumptionOrderId })
+        await this.stop()
+        subscription.unsubscribe()
+      }
+    )
+
+    subscription.add(flowMeter
+      .subscribe(
+        async  payload => {
+          event.sender.send('FLOW', payload)
+
+          if (payload.volume >= limitAmount) {
+            event.sender.send('FINISHED', { ...payload, consumptionOrderId, meta })
+            await this.stop()
+            dbObs.unsubscribe()
+            subscription.unsubscribe()
+          }
+        },
+        async  err => {
+          event.sender.send('ERROR', { error: err.message, consumptionOrderId, meta })
+          await this.stop()
+          subscription.unsubscribe()
+        },
+        async  () => {
+          console.log('COMPLETE ===>')
+          await this.stop()
+          subscription.unsubscribe()
+        }
+      ))
+
+  }
 }
