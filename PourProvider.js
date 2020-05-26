@@ -1,12 +1,14 @@
 const { of, Subscription, Observable, fromEvent, Subject, interval, BehaviorSubject } = require('rxjs');
-const { takeLast, map, takeWhile, timeoutWith, catchError, finalize, delay, isEmpty, count, timeout, first, filter, debounce, throttle, switchMap } = require('rxjs/operators');
+const { takeLast, skip, map, takeWhile, timeoutWith, catchError, finalize, delay, isEmpty, count, timeout, first, filter, debounce, throttle, switchMap } = require('rxjs/operators');
 
 const gpio = require('rpi-gpio')
+const gpioPromise = require('rpi-gpio').promise
+
 
 const OPEN_VALVE = false
 const CLOSE_VALVE = true
 
-const FLOWMETER = 13
+const FLOWMETER = 29
 const RELE = 11
 const LED_RED = 18
 const LED_GREEN = 15
@@ -65,18 +67,15 @@ module.exports = class PourProvider {
   }
 
   consumptionHandler = async (event, { id, limitAmount, consumptionOrderId, meta }) => {
-    console.log(event, id)
     const debounceTime = this.debounceTime,
       timeoutTime = this.timeoutTime,
-      flowPulseFactor = this.flowPulseFactor,
-      flowMeterSource = this.gpioListener()
-      
-    console.log('=> Config: ', { debounceTime, timeoutTime, flowPulseFactor })
-
+      flowPulseFactor = this.flowPulseFactor
+    console.log( id, '=> Config: ', { debounceTime, timeoutTime, flowPulseFactor })
     await this.start()
 
     let pulses = 0
-    const flowMeter = flowMeterSource.pipe(
+    const flowMeter = this.gpioListener().pipe(
+      skip(10),
       map(([pin, value], i) => {
         pulses++
         const volume = Math.trunc(pulses * flowPulseFactor)
@@ -89,24 +88,27 @@ module.exports = class PourProvider {
     const subscription = new Subscription()
 
     const dbObs = flowMeter.pipe(
-      debounce(() => interval(debounceTime))
+      debounce(() => interval(debounceTime)),
+      first()
     ).subscribe(async (payload) => {
       event.sender.send('DEBOUNCE', { ...payload, consumptionOrderId, meta })
       await this.stop()
       subscription.unsubscribe()
     })
+    subscription.add(dbObs)
 
     const to = flowMeter.pipe(
       timeout(timeoutTime),
       first(),
     ).subscribe(
       null,
-      async  () => {
+      async () => {
         event.sender.send('TIMEOUT', { id, pulses: 0, volume: 0, meta, consumptionOrderId })
         await this.stop()
         subscription.unsubscribe()
       }
     )
+    subscription.add(to)
 
     subscription.add(flowMeter
       .subscribe(
