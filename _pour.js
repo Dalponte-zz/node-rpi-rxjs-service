@@ -13,23 +13,7 @@ const consumption = {
     "id": 1067,
     "limitAmount": 100,
     "createdAt": "2020-05-25T13:24:45.269532+00:00",
-    "consumption_order": {
-        "id": 567,
-        "tapId": 1,
-        "createdAt": "2020-05-25T13:24:44.404696+00:00",
-        "amount": 333,
-        "client": {
-            "id": 28,
-            "name": "Zike",
-            "credit_transactions_aggregate": {
-                "aggregate": {
-                    "sum": {
-                        "value": 20
-                    }
-                }
-            }
-        }
-    }
+    "consumption_order": {}
 }
 
 const provider = new PourProvider(
