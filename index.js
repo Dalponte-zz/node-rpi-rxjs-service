@@ -1,118 +1,129 @@
-const {Observable, fromEvent, Subject, interval, timer} = require('rxjs');
-const {first, skip, debounce, map, finalize, filter, throttle, switchMap, multicast} = require('rxjs/operators');
+const { Observable, fromEvent, Subject, interval, timer } = require('rxjs');
+const { first, skip, debounce, map, finalize, filter, throttle, switchMap, multicast } = require('rxjs/operators');
+const events = require('events')
 const readline = require('readline')
-const gpioController = require('./gpioController')
-const rfidController = require('./rfidController')
-const mockEvent = require('./mockEvent')
+const gpio = require('rpi-gpio')
+const gpioPromise = require('rpi-gpio').promise
 
-
-const pourVolume = ({ valve, flowMeter }) => (event, { id, limitAmount, code }) => {
-    const flux = gpioController.setupFlowMeter(flowMeter)
-
-    const db = flux.pipe(
-        switchMap(() => interval(2000))
-    )
-    console.log('[DEBOUNCE] ==> setup',db)
-
-    const listen = flux.subscribe(payload => {
-        event.sender.send('FLOW', {...payload, limitAmount} )
-
-        db.subscribe(payload => {
-            console.log('[DEBOUNCE] ==> Consumo terminado por Debounce')
-            event.sender.send('DEBOUNCE', {consumptionBeginId: id, totalAmount: payload.volume, code, metrics: {}});
-          });
-
-        if (payload.volume >= limitAmount) {
-            event.sender.send('FINISHED', { consumptionBeginId: id, totalAmount: payload.volume, code, metrics: [] })
-            valve.next({ action: gpioController.CLOSE_VALVE }) // @TODO Change to symbol close_valve
-            console.log('[4] ===> ', 'Valve CLOSED. ==> Served: ', payload.volume, ' mls')
-            listen.unsubscribe()
-        }
-    })
-
-    valve.next({ action: gpioController.OPEN_VALVE }) // @TODO Change to symbol close_valve
-    console.log('[3] ===> ', 'Valve OPEN ==> Serving ', limitAmount, ' mls')
-}
+const rfidController = require('./old/rfidController')
+const PourProvider = require('./PourProvider')
+const { mockEvent, mockGpioPromise } = require('./mock')
 
 readline.emitKeypressEvents(process.stdin)
 process.stdin.setRawMode(true)
 const keypress = fromEvent(process.stdin, 'keypress')
 console.info('Press CTRL + C to end program')
-var v
 
+const consumption = {
+    "meta": null,
+    "id": 1067,
+    "limitAmount": 100,
+    "createdAt": "2020-05-25T13:24:45.269532+00:00",
+    "consumption_order": {}
+}
 
-const consumption = new Subject().subscribe((payload)=> {
-    const f = gpioController.setupFlowMeter()
-})
+const mockFlowmeter = () => interval(10).pipe(
+    // delay(15000), // TIMEOUT
+    filter((t) => {
+        // return true // Default
+        return t < 300 // || t > 500 // DEBOUNCE
+    }),
+    map(() => [13, true])
+)
+
+const provider = new PourProvider(
+    () => fromEvent(gpio, 'change'),
+    gpioPromise,
+    {
+        flowPulseFactor: 0.146,
+        timeoutTime: 5000,
+        debounceTime: 8000,
+    }
+)
+
+const ipcMain = new events.EventEmitter()
+ipcMain.on('AUTHENTICATED', provider.consumptionHandler)
+
+let ctrl = true
+let TEST = 13
+
 try {
     keypress.subscribe(async ([event, key]) => {
         switch (event) {
             case 'a':
-                md.next({})
-
-                break
-
-            case '1': // Inicializa porta da valvula
-                v = await gpioController.setupValve()
-                v.subscribe((item) => console.log(item))
-                break
-
-            case '2': // Abre valvula
-                v.next({ action: gpioController.OPEN_VALVE })
-                break
-
-            case '3': // Fecha valvula
-                v.next({ action: gpioController.CLOSE_VALVE })
-                break
-
-            case '4': // Termina controlador da válvula
-                v.complete()
-                break
-
-            case '5': // Leitura do RFID apresentando na tela
-                console.log('-> Lendo RFID uma vez')
-                obs = rfidController.readOnce()
-                console.warn(obs)
-                obs.subscribe((payload) => {
-                    console.log('LEU: ', payload)
+                provider.setup().then(async () => {
+                    ipcMain.emit('AUTHENTICATED', mockEvent, consumption)
                 })
                 break
 
-            case '6': // Permanentemente ouvindo RFID e libera consumo de 50ml
+            case '\'':
+                await provider.setup()
+                break
+            case '1':
+                await provider.start()
+                break
+            case '2':
+                await provider.stop()
+                break
+            case '\\':
+                await provider.clean()
+                break
+
+            case ' ':
+                console.log('LISTEN: ', TEST)
+                await gpioPromise.setup(TEST, gpioPromise.DIR_IN, gpioPromise.EDGE_BOTH)
+                fromEvent(gpio, 'change').subscribe(i => console.log(i))
+                break
+
+            case 'z':
+                await gpioPromise.setup(TEST, gpioPromise.DIR_HIGH)
+                break
+            case 'x':
+                await gpioPromise.write(TEST, ctrl)
+                ctrl = !ctrl
+                break
+            case 'c':
+                await gpioPromise.write(TEST, ctrl)
+                ctrl = !ctrl
+                break
+
+            case '5':
+                console.log('-> Lendo RFID uma vez')
                 rfidController
-                    .listen()
-                    .subscribe(payload => {
-                        console.log(payload)
-                        gpioController.init().then(({ valve }) => {
-                            pourVolume({ valve })(mockEvent, {id: 10, limitAmount: 50, code:  'UNDEFINED'})
-                        })
+                    .readOnce()
+                    .subscribe((payload) => {
+                        console.log('RFID: ', payload)
                     })
                 break
 
-            case ' ': // Permanentemente começa a ouvir a porta do fluxometro
-                f = gpioController.setupFlowMeter().subscribe(item => console.log(item))
-                console.log('Start listening flowmeter')
-                break;
-
-            case 'x': // Para de ouvir a porta do fluxometro
-                f.unsubscribe()
-                console.log('Stop listening flowmeter')
-                break;
-
-            case '\r': // Libera 100ml usando 
-                gpioController.init().then(({ valve }) => {
-                    pourVolume({ valve })(mockEvent, {id: 10, limitAmount: 50, code:  'UNDEFINED'})
-                }).catch((err) => {
-                    console.error('[ERROR] ===> It was not possible initialize the GPIO Controller!', err)
-//                     ipcMain.on('AUTHENTICATED', pourVolume({ valve: new Subject(), flowMeter: mock() }))
-                })
+            case '6':
+                console.log('-> Lendo RFID permanentemente')
+                rfidController
+                    .listen()
+                    .subscribe(payload => console.log('RFID: ', payload))
                 break
+
+            case 'x': // Permanentemente começa a ouvir a porta do fluxometro
+                provider.gpioListener().subscribe((e) => console.log(e))
+                break;
 
             case '\u0003': // CTRL C termina aplicação
                 // CTRL + C to exit
                 process.exit()
 
-            default: console.log('NO ACTION. Available: 1,2,3,4," ",x,t,ENTER', JSON.stringify(key))
+            default: console.log(`Options:
+a: pour 100ml
+\': setup
+1: start
+2: stop
+\\: destroy
+5: RFID once
+6: RFID
+z: TEST pin ${TEST} setup
+x: TEST pin ${TEST} true
+c: TEST pin ${TEST} false
+[ ]: listen pin ${TEST} raw
+x: listen flowmeter`, JSON.stringify(key))
         }
     });
 } catch (e) {

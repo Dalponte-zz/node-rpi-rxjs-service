@@ -11,7 +11,7 @@ interval(1000).subscribe((t) => {console.log('t: ', t)})
 const consumption = {
     "meta": null,
     "id": 1067,
-    "limitAmount": 100,
+    "limitAmount": 50,
     "createdAt": "2020-05-25T13:24:45.269532+00:00",
     "consumption_order": {}
 }
@@ -21,7 +21,7 @@ const provider = new PourProvider(
     gpioPromise,
     {
         flowPulseFactor: 0.146,
-        timeoutTime: 5000,
+        timeoutTime: 15000,
         debounceTime: 8000,
     }
 )

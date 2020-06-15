@@ -1,6 +1,8 @@
 const {Observable, fromEvent, Subject, interval} = require('rxjs');
 const {map, finalize, filter, throttle} = require('rxjs/operators');
 var gpio = require('rpi-gpio').promise;
+var rpiGpio = require('rpi-gpio');
+
 
 VALVE_CHANNEL = 11
 FLUX_CHANNEL = 13
@@ -11,8 +13,8 @@ CLOSE_VALVE = false
 const setupFlowMeter = (flowMeter) => {
   if (flowMeter) return flowMeter
   let pulses = 0
-  const observable = fromEvent(gpio, 'change')
-  gpio.setup(FLUX_CHANNEL, gpio.DIR_IN, gpio.EDGE_BOTH,
+  const observable = fromEvent(rpiGpio, 'change')
+  rpiGpio.setup(FLUX_CHANNEL, rpiGpio.DIR_IN, rpiGpio.EDGE_BOTH,
     (err) => console.log(`> Flowmeter on channel ${FLUX_CHANNEL} setup.`, err));
   return observable.pipe(
     map(([channel, value]) => {

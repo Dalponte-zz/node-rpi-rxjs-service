@@ -1,14 +1,14 @@
-const { of, Subscription, Observable, fromEvent, Subject, interval, BehaviorSubject } = require('rxjs');
-const { takeLast, skip, map, takeWhile, timeoutWith, catchError, finalize, delay, isEmpty, count, timeout, first, filter, debounce, throttle, switchMap } = require('rxjs/operators');
+const { Subscription, interval } = require('rxjs');
+const { skip, map, timeout, first, debounce, throttle } = require('rxjs/operators');
 
-const OPEN_VALVE = false
-const CLOSE_VALVE = true
+const OPEN_VALVE = true
+const CLOSE_VALVE = false
 
-const FLOWMETER = 29
+const FLOWMETER = 13
 const RELE = 11
-const LED_RED = 18
-const LED_GREEN = 15
-const LED_BLUE = 16
+const LED_RED = 29
+const LED_GREEN = 31
+const LED_BLUE = 32
 
 module.exports = class PourProvider {
   constructor(
@@ -33,7 +33,7 @@ module.exports = class PourProvider {
 
   async setup() {
     const gpioCtrl = this.gpioCtrl
-    console.log('SETUP => ', FLOWMETER, RELE)
+    console.log('SETUP => flowmeter:', FLOWMETER, 'rele:', RELE)
     return Promise.all([
       gpioCtrl.setup(FLOWMETER, gpioCtrl.DIR_IN, gpioCtrl.EDGE_BOTH),
       gpioCtrl.setup(RELE, gpioCtrl.DIR_HIGH),
@@ -45,7 +45,7 @@ module.exports = class PourProvider {
 
   async start() {
     const gpioCtrl = this.gpioCtrl
-    console.log('START => ', RELE, LED_RED, LED_GREEN)
+    console.log('START => rele:', OPEN_VALVE, 'green led:', LED_GREEN)
     return Promise.all([
       gpioCtrl.write(RELE, OPEN_VALVE),
       gpioCtrl.write(LED_RED, false),
@@ -54,7 +54,7 @@ module.exports = class PourProvider {
   }
   async stop() {
     const gpioCtrl = this.gpioCtrl
-    console.log('STOP => ', RELE, LED_RED, LED_GREEN)
+    console.log('STOP => rele:', CLOSE_VALVE, 'red led:', LED_RED)
     return Promise.all([
       gpioCtrl.write(RELE, CLOSE_VALVE),
       gpioCtrl.write(LED_RED, true),
@@ -66,7 +66,7 @@ module.exports = class PourProvider {
     const debounceTime = this.debounceTime,
       timeoutTime = this.timeoutTime,
       flowPulseFactor = this.flowPulseFactor
-    console.log( id, '=> Config: ', { debounceTime, timeoutTime, flowPulseFactor })
+    console.log( id, '=> Config: ', { limitAmount, debounceTime, timeoutTime, flowPulseFactor })
     await this.start()
 
     let pulses = 0
@@ -79,12 +79,13 @@ module.exports = class PourProvider {
       }),
       throttle(() => interval(100)),
     )
-    
+
     const subscription = new Subscription()
 
     subscription.add( flowMeter.pipe(
       debounce(() => interval(debounceTime))
     ).subscribe(async (payload) => {
+      console.log('DEBOUNCE ==>', payload)
       event.sender.send('DEBOUNCE', { ...payload, consumptionOrderId, meta })
       await this.stop()
       subscription.unsubscribe()
@@ -96,6 +97,7 @@ module.exports = class PourProvider {
     ).subscribe(
       null,
       async () => {
+        console.log('TIMEOUT ==>', id)
         event.sender.send('TIMEOUT', { id, pulses: 0, volume: 0, meta, consumptionOrderId })
         await this.stop()
         subscription.unsubscribe()
@@ -103,19 +105,21 @@ module.exports = class PourProvider {
     ))
 
     subscription.add(flowMeter.subscribe(
-        async  payload => {
-          event.sender.send('FLOW', payload)
-          if (payload.volume >= limitAmount) {
-            event.sender.send('FINISHED', { ...payload, consumptionOrderId, meta })
-            await this.stop()
-            subscription.unsubscribe()
-          }
-        },
-        async  err => {
-          event.sender.send('ERROR', { error: err.message, consumptionOrderId, meta })
+      async  payload => {
+        event.sender.send('FLOW', payload)
+        if (payload.volume >= limitAmount) {
+          console.log('FINISHED ==>', payload)
+          event.sender.send('FINISHED', { ...payload, consumptionOrderId, meta })
           await this.stop()
           subscription.unsubscribe()
         }
+      },
+      async  err => {
+        console.log('ERROR ==>', err)
+        event.sender.send('ERROR', { error: err.message, consumptionOrderId, meta })
+        await this.stop()
+        subscription.unsubscribe()
+      }
     ))
   }
 }
