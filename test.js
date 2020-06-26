@@ -44,12 +44,18 @@ const calibragem = async ({ id }) => {
             console.log({ id, volume, segundo, i, t })
         },
         err => console.log('FALHA NO FLUXOMETRO', err),
-        (p) => console.log('-------------------------', process.exit())
+        (p) => console.log('-------------------------', provider.stop())
     )
+
+    const fim = interval(11000).subscribe(() => {
+        op.unsubscribe()
+        fim.unsubscribe()
+        console.log('=========================', provider.stop())
+    })
 }
 
 let ctrl = true
-let TEST = 16
+let TEST = 13
 
 try {
     keypress.subscribe(async ([event, key]) => {
@@ -58,7 +64,7 @@ try {
             case ' ':
                 await provider.setup()
                 calibragem({ id: 0 })
-                    .then(() => console.log('calibrando! - - - - - - - -'))
+                    .then(() => console.log('calibrando! - - - - - - - -', provider.start()))
                     .catch((err) => console.error('ERRO > > >', err))
                 break;
 
