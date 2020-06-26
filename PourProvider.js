@@ -1,14 +1,14 @@
 const { Subscription, interval } = require('rxjs');
 const { skip, map, timeout, first, debounce, throttle } = require('rxjs/operators');
 
-const OPEN_VALVE = true
-const CLOSE_VALVE = false
+const OPEN_VALVE = false
+const CLOSE_VALVE = true
 
-const FLOWMETER = 13
-const RELE = 11
-const LED_RED = 29
-const LED_GREEN = 31
-const LED_BLUE = 32
+const FLOWMETER = 16
+const RELE = 18
+const LED_RED = 11
+const LED_GREEN = 13
+const LED_BLUE = 15
 
 module.exports = class PourProvider {
   constructor(

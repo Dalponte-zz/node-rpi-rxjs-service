@@ -45,7 +45,7 @@ const ipcMain = new events.EventEmitter()
 ipcMain.on('AUTHENTICATED', provider.consumptionHandler)
 
 let ctrl = true
-let TEST = 13
+let TEST = 16
 
 try {
     keypress.subscribe(async ([event, key]) => {
@@ -119,7 +119,7 @@ a: pour 100ml
 \\: destroy
 5: RFID once
 6: RFID
-z: TEST pin ${TEST} setup
+z: TEST pin ${TEST} setup to WRITE
 x: TEST pin ${TEST} true
 c: TEST pin ${TEST} false
 [ ]: listen pin ${TEST} raw
